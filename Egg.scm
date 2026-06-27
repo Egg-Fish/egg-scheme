@@ -53,19 +53,19 @@
 
    [(Egg.Token.Dot? t)
     (Egg.Token.Dot->string t)]
-   
+
    [(Egg.Token.Plus? t)
     (Egg.Token.Plus->string t)]
-   
+
    [(Egg.Token.WS? t)
     (Egg.Token.WS->string t)]
-   
+
    [(Egg.Token.Id? t)
     (Egg.Token.Id->string t)]
-   
+
    [(Egg.Token.Int? t)
     (Egg.Token.Int->string t)]
-   
+
    [else
     (errorf 'Egg.Token->string
 	    "No rule for ~a"
@@ -125,16 +125,19 @@
 		  (cons 1
 			Egg.Token.Backslash)
 		  #f))
+
 	    (define (lexDot)
 	      (if (char=? c #\.)
 		  (cons 1
 			Egg.Token.Dot)
 		  #f))
+
 	    (define (lexPlus)
 	      (if (char=? c #\+)
 		  (cons 1
 			Egg.Token.Plus)
 		  #f))
+
 	    (define (lexWS)
 	      (let loop ([l 0])
 		(let ([c (string-ref str (+ pos l))])
@@ -147,6 +150,7 @@
 			      (Egg.Token.WS (substring str
 						       pos
 						       (+ pos l)))))))))
+
 	  (define (lexId)
 	    (let loop ([l 0])
 	      (let ([c (string-ref str (+ pos l))])
@@ -178,8 +182,8 @@
 			      (Egg.Token.Int (string->number (substring str
 									pos
 									(+ pos l))))))))))
-	    
-	  
+
+
 	  (let* ([lexers (list (lexBackslash)
 			       (lexDot)
 			       (lexPlus)
@@ -195,4 +199,3 @@
 		      ts)
 		(loop (+ pos (force l))
 		      (cons (force t) ts)))))))))
-			
