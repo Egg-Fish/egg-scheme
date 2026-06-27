@@ -26,6 +26,18 @@
        (pair? v)
        (equal? (car v) tag)))
 
+;;; Tokens
+;;; *-----------*---------*
+;;; | Token     | Example |
+;;; |-----------|---------|
+;;; | Backslash | \       |
+;;; | Dot       | .       |
+;;; | Plus      | +       |
+;;; | WS        |         |
+;;; | Id        | xyz     |
+;;; | Int       | 42      |
+;;; *-----------*---------*
+
 (define (Egg.Token? v)
   (or (Egg.Token.Backslash? v)
       (Egg.Token.Dot? v)
