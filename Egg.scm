@@ -303,7 +303,7 @@
 		    (list #f
 			  `("ERROR: Missing dot")
 			  ts)
-		    (let* ([body (Egg.Parser.parseExpr2 (cdr ts))]
+		    (let* ([body (Egg.Parser.parseExpr1 (cdr ts))]
 			   [err3 (if (car body) `() `("ERROR: Invalid body" . ,(cadr body)))])
 		      (if (and (null? err1)
 			       (null? err2)
