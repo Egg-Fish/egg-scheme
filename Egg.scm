@@ -168,6 +168,18 @@
 			Egg.Token.Plus)
 		  #f))
 
+	    (define (lexLP)
+	      (if (char=? c #\()
+		  (cons 1
+			Egg.Token.LP)
+		  #f))
+
+	    (define (lexRP)
+	      (if (char=? c #\))
+		  (cons 1
+			Egg.Token.RP)
+		  #f))
+
 	    (define (lexWS)
 	      (let loop ([l 0])
 		(let ([c (string-ref str (+ pos l))])
@@ -218,6 +230,8 @@
 		   [lexers (list (lexBackslash)
 				 (lexDot)
 				 (lexPlus)
+				 (lexLP)
+				 (lexRP)
 				 (lexWS)
 				 (lexId)
 				 (lexInt))]
