@@ -33,6 +33,8 @@
 ;;; | Backslash | \       |
 ;;; | Dot       | .       |
 ;;; | Plus      | +       |
+;;; | LP        | (       |
+;;; | RP        | )       |
 ;;; | WS        |         |
 ;;; | Id        | xyz     |
 ;;; | Int       | 42      |
@@ -42,9 +44,12 @@
   (or (Egg.Token.Backslash? v)
       (Egg.Token.Dot? v)
       (Egg.Token.Plus? v)
+      (Egg.Token.LP? v)
+      (Egg.Token.RP? v)
       (Egg.Token.WS? v)
       (Egg.Token.Id? v)
-      (Egg.Token.Int? v)))
+      (Egg.Token.Int? v)
+      (Egg.Token.Unknown? v)))
 
 (define (Egg.Token->string t)
   (cond
@@ -57,6 +62,12 @@
    [(Egg.Token.Plus? t)
     (Egg.Token.Plus->string t)]
 
+   [(Egg.Token.LP? t)
+    (Egg.Token.LP->string t)]
+
+   [(Egg.Token.RP? t)
+    (Egg.Token.RP->string t)]
+
    [(Egg.Token.WS? t)
     (Egg.Token.WS->string t)]
 
@@ -65,6 +76,9 @@
 
    [(Egg.Token.Int? t)
     (Egg.Token.Int->string t)]
+
+   [(Egg.Token.Unknown? t)
+    (Egg.Token.Unknown->string t)]
 
    [else
     (errorf 'Egg.Token->string
@@ -82,6 +96,14 @@
 (define Egg.Token.Plus 'Egg.Token.Plus)
 (define Egg.Token.Plus? (Egg.curry equal? Egg.Token.Plus))
 (define Egg.Token.Plus->string (Egg.constant "+"))
+
+(define Egg.Token.LP 'Egg.Token.LP)
+(define Egg.Token.LP? (Egg.curry equal? Egg.Token.LP))
+(define Egg.Token.LP->string (Egg.constant "("))
+
+(define Egg.Token.RP 'Egg.Token.RP)
+(define Egg.Token.RP? (Egg.curry equal? Egg.Token.RP))
+(define Egg.Token.RP->string (Egg.constant ")"))
 
 (define (Egg.Token.WS str)
   (assert (and (string? str)
@@ -107,6 +129,13 @@
   (Egg.curry (Egg.compose number->string
 			  Egg.Token.Int.getValue)))
 
+(define (Egg.Token.Unknown char)
+  (assert (char? char))
+  (list 'Egg.Token.Unknown char))
+(define Egg.Token.Unknown? (Egg.curry Egg.TaggedList? 'Egg.Token.Unknown))
+(define Egg.Token.Unknown.getChar cadr)
+(define Egg.Token.Unknown->string (Egg.compose string Egg.Token.Unknown.getChar))
+
 (define Egg.Tokens? list?)
 (define (Egg.Tokens->string ts)
   (apply string-append (map Egg.Token->string ts)))
@@ -114,10 +143,11 @@
 
 
 (define (Egg.Lexer.lex str)
-  (let ([str (string-append str "#")])
+  (let* ([endMarker #\~]
+	 [str (string-append str (string endMarker))])
     (let loop ([pos 0]
 	       [ts '()])
-      (if (>= pos (string-length str))
+      (if (= pos (string-length str))
 	  (reverse ts)
 	  (let ([c (string-ref str pos)])
 	    (define (lexBackslash)
@@ -144,58 +174,63 @@
 		  (if (and (< (+ pos l) (string-length str))
 			   (char-whitespace? c))
 		      (loop (1+ l))
-		    (if (= l 0)
-			#f
-			(cons l
-			      (Egg.Token.WS (substring str
-						       pos
-						       (+ pos l)))))))))
+		      (if (= l 0)
+			  #f
+			  (cons l
+				(Egg.Token.WS (substring str
+							 pos
+							 (+ pos l)))))))))
 
-	  (define (lexId)
-	    (let loop ([l 0])
-	      (let ([c (string-ref str (+ pos l))])
-		(if (and (< (+ pos l) (string-length str))
-			 (or (and (= l 0) (or (char-alphabetic? c)
-					      (char=? c #\')))
-			     (and (> l 0) (or (char-alphabetic? c)
-					      (char-numeric? c)
-					      (char=? c #\')
-					      (char=? c #\-)
-					      (char=? c #\_)))))
-		    (loop (1+ l))
-		    (if (= l 0)
-			#f
-			(cons l
-			      (Egg.Token.Id (substring str
-						       pos
-						       (+ pos l)))))))))
+	    (define (lexId)
+	      (let loop ([l 0])
+		(let ([c (string-ref str (+ pos l))])
+		  (if (and (< (+ pos l) (string-length str))
+			   (or (and (= l 0) (or (char-alphabetic? c)
+						(char=? c #\')))
+			       (and (> l 0) (or (char-alphabetic? c)
+						(char-numeric? c)
+						(char=? c #\')
+						(char=? c #\-)
+						(char=? c #\_)))))
+		      (loop (1+ l))
+		      (if (= l 0)
+			  #f
+			  (cons l
+				(Egg.Token.Id (substring str
+							 pos
+							 (+ pos l)))))))))
 
-	  (define (lexInt)
-	    (let loop ([l 0])
-	      (let ([c (string-ref str (+ pos l))])
-		(if (and (< (+ pos l) (string-length str))
-			 (char-numeric? c))
-		    (loop (1+ l))
-		    (if (= l 0)
-			#f
-			(cons l
-			      (Egg.Token.Int (string->number (substring str
-									pos
-									(+ pos l))))))))))
+	    (define (lexInt)
+	      (let loop ([l 0])
+		(let ([c (string-ref str (+ pos l))])
+		  (if (and (< (+ pos l) (string-length str))
+			   (char-numeric? c))
+		      (loop (1+ l))
+		      (if (= l 0)
+			  #f
+			  (cons l
+				(Egg.Token.Int (string->number (substring str
+									  pos
+									  (+ pos l))))))))))
 
 
-	  (let* ([lexers (list (lexBackslash)
-			       (lexDot)
-			       (lexPlus)
-			       (lexWS)
-			       (lexId)
-			       (lexInt))]
-		 [successful (filter pair? lexers)]
-		 [sorted (Egg.sort-car > successful)]
-		 [l (delay (caar sorted))]
-		 [t (delay (cdar sorted))])
-	    (if (null? sorted)
-		(loop (1+ pos)
-		      ts)
-		(loop (+ pos (force l))
-		      (cons (force t) ts)))))))))
+	    (let* ([c (string-ref str pos)]
+		   [lexers (list (lexBackslash)
+				 (lexDot)
+				 (lexPlus)
+				 (lexWS)
+				 (lexId)
+				 (lexInt))]
+		   [successful (filter pair? lexers)]
+		   [sorted (Egg.sort-car > successful)]
+		   [l (delay (caar sorted))]
+		   [t (delay (cdar sorted))])
+	      (if (null? sorted)
+		  (if (char=? c endMarker)
+		      (loop (1+ pos)
+			    ts)
+		      (loop (1+ pos)
+			    (cons (Egg.Token.Unknown c) ts)))
+		  (loop (+ pos (force l))
+			(cons (force t) ts)))))))))
+
