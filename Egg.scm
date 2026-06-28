@@ -234,3 +234,14 @@
 		  (loop (+ pos (force l))
 			(cons (force t) ts)))))))))
 
+
+(define (Egg.Lexer.lexFile filename)
+  (call-with-input-file filename
+    (lambda (f)
+      (let loop ([s '()])
+	(let ([c (read-char f)])
+	  (if (eof-object? c)
+	      (let ([str (list->string (reverse s))])
+		(Egg.Lexer.lex str))
+	      (loop (cons c s))))))))
+
