@@ -140,6 +140,16 @@
 (define (Egg.Tokens->string ts)
   (apply string-append (map Egg.Token->string ts)))
 
+(define (Egg.Tokens.check pred ts)
+  (and (not (null? ts))
+       (pred (car ts))))
+
+(define (Egg.Tokens.consume pred ts)
+  (if (not (Egg.Tokens.check pred ts))
+      ts
+      (Egg.Tokens.consume pred (cdr ts))))
+
+(define Egg.Tokens.consumeWS (Egg.curry Egg.Tokens.consume Egg.Token.WS?))
 
 
 (define (Egg.Lexer.lex str)
@@ -259,3 +269,179 @@
 		(Egg.Lexer.lex str))
 	      (loop (cons c s))))))))
 
+
+
+(define (Egg.Parser.parse ts) (Egg.Parser.parseExpr1 ts))
+
+(define (Egg.Parser.parseExpr1 ts)
+  (let* ([ts (Egg.Tokens.consumeWS ts)]
+	 [parseLambda (Egg.Parser.parseLambda ts)])
+    (cond
+     [(and (pair? ts)
+	   (Egg.Token.Backslash? (car ts)))
+      parseLambda]
+
+     [else
+      (Egg.Parser.parseExpr2 ts)])))
+
+(define (Egg.Parser.parseLambda ts)
+  (if (null? ts)
+      (list #f
+	    `("ERROR: EMPTY")
+	    ts)
+      (let* ([bs (car ts)]
+	     [err1 (if (Egg.Token.Backslash? bs) `() `("ERROR: Missing backslash"))]
+	     [ts (cdr ts)])
+	(if (null? ts)
+	      (list #f
+		    `("ERROR: Missing param")
+		    ts)
+	      (let* ([param (Egg.Parser.parseVar ts)]
+		     [err2 (if (car param) `() `("ERROR: Invalid param" . ,(cadr param)))]
+		     [ts (Egg.Tokens.consume (Egg.compose not Egg.Token.Dot?) (caddr param))])
+		(if (null? ts)
+		    (list #f
+			  `("ERROR: Missing dot")
+			  ts)
+		    (let* ([body (Egg.Parser.parseExpr2 (cdr ts))]
+			   [err3 (if (car body) `() `("ERROR: Invalid body" . ,(cadr body)))])
+		      (if (and (null? err1)
+			       (null? err2)
+			       (null? err3))
+			  (list `(Expr.Lambda ,(car param) ,(car body))
+				(append (cadr param) (cadr body))
+				(caddr body))
+			  (list #f
+				(append err1 err2 err3)
+				(caddr body))))))))))
+
+
+
+
+(define (Egg.Parser.parseExpr2 ts)
+  (let* ([ts (Egg.Tokens.consumeWS ts)]
+	 [parseBinop (Egg.Parser.parseBinop ts)])
+    (cond
+     [(car parseBinop)
+      parseBinop]
+
+     [else
+      (Egg.Parser.parseExpr3 ts)])))
+
+
+(define (Egg.Parser.parseBinop ts) (Egg.Parser.parseBinop1 ts))
+
+(define (Egg.Parser.parseBinop1 ts)
+  (let* ([ts (Egg.Tokens.consumeWS ts)]
+	 [lhs (Egg.Parser.parseBinop2 ts)])
+    (if (not (car lhs))
+	lhs
+	(let loop ([expr (car lhs)]
+		   [errs (cadr lhs)]
+		   [ts (Egg.Tokens.consumeWS (caddr lhs))])
+	  (cond
+	   [(null? ts)
+	    (list expr
+		  errs
+		  ts)]
+
+	   [(Egg.Token.Plus? (car ts))
+	    (let ([rhs (Egg.Parser.parseBinop2 (cdr ts))])
+	      (loop `(Expr.Binop Add ,expr ,(car rhs))
+		    (append errs (cadr rhs))
+		    (Egg.Tokens.consumeWS (caddr rhs))))]
+
+	   [else
+	    (list expr
+		  errs
+		  ts)])))))
+
+
+(define (Egg.Parser.parseBinop2 ts) (Egg.Parser.parseExpr3 ts))
+
+(define (Egg.Parser.parseExpr3 ts)
+  (let* ([ts (Egg.Tokens.consumeWS ts)]
+	 [lhs (Egg.Parser.parseExpr4 ts)])
+    (if (not (car lhs))
+	lhs
+	(let loop ([expr (car lhs)]
+		   [errs (cadr lhs)]
+		   [ts (Egg.Tokens.consumeWS (caddr lhs))])
+	  (let ([rhs (Egg.Parser.parseExpr4 ts)])
+	    (if (not (car rhs))
+		(list expr
+		      errs
+		      ts)
+		(loop `(Expr.App ,expr ,(car rhs))
+		      (append errs (cadr rhs))
+		      (Egg.Tokens.consumeWS (caddr rhs)))))))))
+
+(define (Egg.Parser.parseExpr4 ts)
+  (let* ([ts (Egg.Tokens.consumeWS ts)]
+	 [parseInt (Egg.Parser.parseInt ts)]
+	 [parseVar (Egg.Parser.parseVar ts)])
+    (cond
+     [(car parseInt)
+      parseInt]
+
+     [(car parseVar)
+      parseVar]
+
+     [else
+      (Egg.Parser.parseExpr5 ts)])))
+
+(define (Egg.Parser.parseInt ts)
+  (if (null? ts)
+      (list #f
+	    `("ERROR: EMPTY")
+	    ts)
+      (let ([t (car ts)]
+	    [tss (cdr ts)])
+	(if (Egg.Token.Int? t)
+	    (list `(Expr.Int ,(Egg.Token.Int.getValue (car ts)))
+		  `()
+		  tss)
+	    (list #f
+		  `("ERROR: Not an int")
+		  ts)))))
+
+(define (Egg.Parser.parseVar ts)
+  (if (null? ts)
+      (list #f
+	    `("ERROR: EMPTY")
+	    ts)
+      (let ([t (car ts)]
+	    [tss (cdr ts)])
+	(if (Egg.Token.Id? t)
+	    (list `(Expr.Var ,(Egg.Token.Id.getName (car ts)))
+		  `()
+		  tss)
+	    (list #f
+		  `("ERROR: Not a variable")
+		  ts)))))
+
+(define (Egg.Parser.parseExpr5 ts)
+  (let ([ts (Egg.Tokens.consumeWS ts)])
+    (if (null? ts)
+	(list #f
+	      `("ERROR: EMPTY")
+	      ts)
+	(let ([lp (car ts)])
+	  (if (not (Egg.Token.LP? lp))
+	      (list #f
+		    `("ERROR: Could not parse as expression")
+		    ts)
+	      (let* ([expr (Egg.Parser.parseExpr1 (cdr ts))]
+		     [ts (Egg.Tokens.consumeWS (caddr expr))])
+		(if (null? ts)
+		    (list #f
+			  `("ERROR: Missing closing parenthesis")
+			  ts)
+		    (let ([rp (car ts)])
+		      (if (not (Egg.Token.RP? rp))
+			  (list #f
+				`("ERROR: Missing closing parenthesis")
+				ts)
+			  (list (car expr)
+				(cadr expr)
+				(cdr ts)))))))))))
