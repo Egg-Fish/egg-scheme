@@ -104,10 +104,10 @@
       (let loop ([p position])
 	(let ([return (lambda ()
 			   (let ([str (substring string position p)])
-			     (case str
-			       ["let"
+			     (cond
+			       [(string=? str "let")
 				(Egg.Lexer.Return (Egg.Token.Let) p)]
-			       ["in"
+			       [(string=? str "in")
 				(Egg.Lexer.Return (Egg.Token.In) p)]
 			       [else
 				(Egg.Lexer.Return (Egg.Token.Id str) p)])))])
@@ -136,23 +136,24 @@
   (unless (string? string)
     (error 'Egg.Lexer.lex "String must be a string" string))
   (let lex ([position 0])
-    (if (>= position (string-length string))
-	'()
-	(let* ([position (let loop ([p position])
-			   (if (char-whitespace? (string-ref string p))
-			       (loop (+ p 1))
-			       p))]
-	       [lexers (list Egg.Lexer.lexEqual
-			     Egg.Lexer.lexPlus
-			     Egg.Lexer.lexStar
-			     Egg.Lexer.lexDot
-			     Egg.Lexer.lexLP
-			     Egg.Lexer.lexRP
-			     Egg.Lexer.lexInt
-			     Egg.Lexer.lexId
-			     Egg.Lexer.lexLambda)]
-	       [returns (map (lambda (l) (l string position)) lexers)]
-	       [returns (filter Egg.Lexer.Return.getResult returns)])
+    (let ([position (let loop ([p position])
+		      (if (and (< p (string-length string))
+			       (char-whitespace? (string-ref string p)))
+			  (loop (+ p 1))
+			  p))])
+      (if (>= position (string-length string))
+	  '()
+	  (let* ([lexers (list Egg.Lexer.lexEqual
+			       Egg.Lexer.lexPlus
+			       Egg.Lexer.lexStar
+			       Egg.Lexer.lexDot
+			       Egg.Lexer.lexLP
+			       Egg.Lexer.lexRP
+			       Egg.Lexer.lexInt
+			       Egg.Lexer.lexId
+			       Egg.Lexer.lexLambda)]
+		 [returns (map (lambda (l) (l string position)) lexers)]
+		 [returns (filter Egg.Lexer.Return.getResult returns)])
 	  (if (null? returns)
 	      (cons (Egg.Token.Unknown (string-ref string position))
 		    (lex (+ position 1)))
@@ -163,7 +164,7 @@
 		     [return (car returns)]
 		     [token (Egg.Lexer.Return.getResult return)]
 		     [position (Egg.Lexer.Return.getPosition return)])
-		(cons token (lex position))))))))
+		(cons token (lex position)))))))))
 
 (define (Egg.Lexer.lexFile filename)
   (unless (string? filename)
