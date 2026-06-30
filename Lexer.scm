@@ -38,6 +38,13 @@
 
 
 
+(define (Egg.Lexer.lexEqual string position)
+  (if (or (>= position (string-length string))
+	  (not (char=? (string-ref string position) #\=)))
+      (Egg.Lexer.Return #f position)
+      (Egg.Lexer.Return (Egg.Token.Equal) (+ position 1))))
+
+
 (define (Egg.Lexer.lexPlus string position)
   (if (or (>= position (string-length string))
 	  (not (char=? (string-ref string position) #\+)))
@@ -95,13 +102,22 @@
 	  (not (char-alphabetic? (string-ref string position))))
       (Egg.Lexer.Return #f position)
       (let loop ([p position])
-	(if (>= p (string-length string))
-	    (Egg.Lexer.Return (Egg.Token.Id (substring string position p)) p)
-	    (let ([c (string-ref string p)])
-	      (if (not (or (char-alphabetic? c)
-			   (char-numeric? c)))
-		  (Egg.Lexer.Return (Egg.Token.Id (substring string position p)) p)
-		  (loop (+ p 1))))))))
+	(let ([return (lambda ()
+			   (let ([str (substring string position p)])
+			     (case str
+			       ["let"
+				(Egg.Lexer.Return (Egg.Token.Let) p)]
+			       ["in"
+				(Egg.Lexer.Return (Egg.Token.In) p)]
+			       [else
+				(Egg.Lexer.Return (Egg.Token.Id str) p)])))])
+	  (if (>= p (string-length string))
+	      (return)
+	      (let ([c (string-ref string p)])
+		(if (not (or (char-alphabetic? c)
+			     (char-numeric? c)))
+		    (return)
+		    (loop (+ p 1)))))))))
 
 
 (define (Egg.Lexer.lexLambda string position)
@@ -126,7 +142,8 @@
 			   (if (char-whitespace? (string-ref string p))
 			       (loop (+ p 1))
 			       p))]
-	       [lexers (list Egg.Lexer.lexPlus
+	       [lexers (list Egg.Lexer.lexEqual
+			     Egg.Lexer.lexPlus
 			     Egg.Lexer.lexStar
 			     Egg.Lexer.lexDot
 			     Egg.Lexer.lexLP

@@ -1,5 +1,8 @@
 (define (Egg.Token? v)
-  (or (Egg.Token.Plus? v)
+  (or (Egg.Token.Let? v)
+      (Egg.Token.In? v)
+      (Egg.Token.Equal? v)
+      (Egg.Token.Plus? v)
       (Egg.Token.Star? v)
       (Egg.Token.Dot? v)
       (Egg.Token.LP? v)
@@ -8,6 +11,30 @@
       (Egg.Token.Id? v)
       (Egg.Token.Lambda? v)
       (Egg.Token.Unknown? v)))
+
+
+(define (Egg.Token.Let)
+  (Egg.Object 'Egg.Token.Let))
+(define (Egg.Token.Let? v)
+  (and (Egg.Object? v)
+       (equal? (Egg.Object.getTag v)
+	       'Egg.Token.Let)))
+
+
+(define (Egg.Token.In)
+  (Egg.Object 'Egg.Token.In))
+(define (Egg.Token.In? v)
+  (and (Egg.Object? v)
+       (equal? (Egg.Object.getTag v)
+	       'Egg.Token.In)))
+
+
+(define (Egg.Token.Equal)
+  (Egg.Object 'Egg.Token.Equal))
+(define (Egg.Token.Equal? v)
+  (and (Egg.Object? v)
+       (equal? (Egg.Object.getTag v)
+	       'Egg.Token.Equal)))
 
 
 (define (Egg.Token.Plus)
