@@ -77,41 +77,70 @@
      [else
       (Egg.Parser.parseExpr2 tokens)])))
 
+
 (define (Egg.Parser.parseLambda tokens)
-  (if (null? tokens)
-      (Egg.Parser.Return.returnUnexpectedEOF tokens)
-      (let ([lambda (car tokens)])
-	(cond
-	 [(not (Egg.Token.Lambda? lambda))
-	  (Egg.Parser.Return.returnUnexpectedToken 'Egg.Token.Lambda
-						   tokens)] ;; or parse an Id (with error)
+  (define (parseLambda tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let ([t (car tokens)])
+	  (cond
+	   [(Egg.Token.Lambda? t)
+	    (Egg.Parser.Return (Egg.Expr.Var (Egg.Token.Lambda.getParameter t))
+			       '()
+			       (cdr tokens))]
 
-	 [(null? (cdr tokens))
-	  (Egg.Parser.Return.returnUnexpectedEOF (cdr tokens))] ;; Missing dot and body
+	   [(Egg.Token.Id? t)
+	    (Egg.Parser.Return (Egg.Expr.Var (Egg.Token.Id.getName t))
+			       `(("Parsing id as lambda parameter" ,tokens))
+			       (cdr tokens))]
 
-	 [else
-	  (let* ([tokens (cdr tokens)]
-		 [dot (car tokens)])
-	    (cond
-	     [(not (Egg.Token.Dot? dot))
-	      (Egg.Parser.Return.returnUnexpectedToken (Egg.Token.Dot)
-						       tokens)] ;; or parse without dot (with error)
+	   [else
+	    (Egg.Parser.Return.returnUnexpectedToken (Egg.Token.Let) tokens)]))))
 
-	     [(null? (cdr tokens))
-	      (Egg.Parser.Return.returnUnexpectedEOF (cdr tokens))] ;; Missing body
+  (define (parseDot tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let ([t (car tokens)])
+	  (if (not (Egg.Token.Dot? t))
+	      (Egg.Parser.Return (Egg.Expr.Unknown)
+				 `(("Missing ., skipping" ,tokens))
+				 tokens)
+	      (Egg.Parser.Return (Egg.Expr.Unknown)
+				 '()
+				 (cdr tokens))))))
 
-	     [else
-	      (let* ([tokens (cdr tokens)]
-		     [parseBody (Egg.Parser.parseExpr1 tokens)]
-		     [body (Egg.Parser.Return.getResult parseBody)]
-		     [errors (Egg.Parser.Return.getErrors parseBody)]
-		     [tokens (Egg.Parser.Return.getTokens parseBody)])
+  (define (parseBody tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let* ([ret (Egg.Parser.parseExpr1 tokens)]
+	       [body (Egg.Parser.Return.getResult ret)]
+	       [tokens (Egg.Parser.Return.getTokens ret)])
+	  (if (not body)
+	      (Egg.Parser.Return.addError `("Could not parse body") ret)
+	      ret))))
+
+  (let* ([ret (parseLambda tokens)]
+	 [param (Egg.Parser.Return.getResult ret)]
+	 [errors (Egg.Parser.Return.getErrors ret)]
+	 [tokens (Egg.Parser.Return.getTokens ret)])
+    (if (not param)
+	(Egg.Parser.Return.addError `("Missing parameter") ret)
+	(let* ([ret (parseDot tokens)]
+	       [lhs (Egg.Parser.Return.getResult ret)]
+	       [errors (append (Egg.Parser.Return.getErrors ret) errors)]
+	       [tokens (Egg.Parser.Return.getTokens ret)])
+	  (if (not lhs)
+	      ret
+	      (let* ([ret (parseBody tokens)]
+		     [body (Egg.Parser.Return.getResult ret)]
+		     [errors (append (Egg.Parser.Return.getErrors ret) errors)]
+		     [tokens (Egg.Parser.Return.getTokens ret)])
 		(if (not body)
-		    (Egg.Parser.Return.addError `("Could not parse body") parseBody)
-		    (Egg.Parser.Return (Egg.Expr.Lambda (Egg.Expr.Var (Egg.Token.Lambda.getParameter lambda))
-							body)
+		    ret
+		    (Egg.Parser.Return (Egg.Expr.Lambda param body)
 				       errors
-				       tokens)))]))]))))
+				       tokens))))))))
+
 
 (define (Egg.Parser.parseLet tokens)
   (define (parseLet tokens)
@@ -133,7 +162,7 @@
 	  (if (not lhs)
 	      (Egg.Parser.Return.addError `("Could not parse lhs") ret)
 	      ret))))
-  
+
   (define (parseEqual tokens)
     (if (null? tokens)
 	(Egg.Parser.Return.returnUnexpectedEOF tokens)
@@ -180,7 +209,7 @@
 
   (let* ([ret (parseLet tokens)]
 	 [res (Egg.Parser.Return.getResult ret)]
-	 [errors '()]
+	 [errors (Egg.Parser.Return.getErrors ret)]
 	 [tokens (Egg.Parser.Return.getTokens ret)])
     (if (not res)
 	(Egg.Parser.Return.addError `("Missing let") ret)
@@ -217,7 +246,7 @@
 				      (Egg.Parser.Return (Egg.Expr.Let lhs rhs body)
 							 errors
 							 tokens))))))))))))))
-			  
+
 (define (Egg.Parser.parseExpr2 tokens)
   (let ([parseBinop1 (Egg.Parser.parseBinop1 tokens)])
     (cond
@@ -373,7 +402,7 @@
 
 (define (Egg.Parser.parseExpr5 tokens)
   (Egg.Parser.parseParens tokens))
-  
+
 
 (define (Egg.Parser.parseParens tokens)
   (if (null? tokens)
