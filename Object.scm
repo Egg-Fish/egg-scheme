@@ -1,0 +1,30 @@
+(define (Egg.Object tag . entries)
+  (unless (symbol? tag)
+    (error 'Egg.Object "Tag must be a symbol" tag))
+  (unless (all list? entries)
+    (error 'Egg.Object "Each entry must be a list" entries))
+  (cons tag entries))
+
+(define (Egg.Object? v)
+  (and (pair? v)
+       (symbol? (car v))
+       (and (list? (cdr v))
+	    (all list? (cdr v)))))
+
+(define (Egg.Object.getTag obj)
+  (unless (Egg.Object? obj)
+    (error 'Egg.Object.getTag "Not an Egg.Object" obj))
+  (car obj))
+
+(define (Egg.Object.get key default obj)
+  (unless (Egg.Object? obj)
+    (error 'Egg.Object.get "Not an Egg.Object" obj))
+  (cadr (lookup (compose (curry equal? key) car)
+	       (list key default)
+	       (cdr obj))))
+
+(define (Egg.Object.set key value obj)
+  (let ([entry (Egg.Object.get key #f obj)])
+    (if entry
+	(replace (list key entry) (list key value) obj)
+	(append obj (list (list key value))))))
