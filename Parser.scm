@@ -62,12 +62,17 @@
 (define (Egg.Parser.Return.returnUnexpectedToken expected tokens)
   (Egg.Parser.Return #f `(("Expected" ,expected "Got" ,(car tokens))) tokens))
 
-
 (define (Egg.Parser.parseExpr1 tokens)
-  (let ([parseLambda (Egg.Parser.parseLambda tokens)])
+  (let ([parseLambda (Egg.Parser.parseLambda tokens)]
+	[parseLet (Egg.Parser.parseLet tokens)])
     (cond
-     [(Egg.Parser.Return.getResult parseLambda)
+     [(and (pair? tokens)
+	   (Egg.Token.Lambda? (car tokens)))
       parseLambda]
+
+     [(and (pair? tokens)
+	   (Egg.Token.Let? (car tokens)))
+      parseLet]
 
      [else
       (Egg.Parser.parseExpr2 tokens)])))
@@ -108,7 +113,111 @@
 				       errors
 				       tokens)))]))]))))
 
+(define (Egg.Parser.parseLet tokens)
+  (define (parseLet tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let ([t (car tokens)])
+	  (if (not (Egg.Token.Let? t))
+	      (Egg.Parser.Return.returnUnexpectedToken (Egg.Token.Let) tokens)
+	      (Egg.Parser.Return (Egg.Expr.Unknown)
+				 '()
+				 (cdr tokens))))))
 
+  (define (parseLhs tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let* ([ret (Egg.Parser.parseVar tokens)]
+	       [lhs (Egg.Parser.Return.getResult ret)]
+	       [tokens (Egg.Parser.Return.getTokens ret)])
+	  (if (not lhs)
+	      (Egg.Parser.Return.addError `("Could not parse lhs") ret)
+	      ret))))
+  
+  (define (parseEqual tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let ([t (car tokens)])
+	  (if (not (Egg.Token.Equal? t))
+	      (Egg.Parser.Return (Egg.Expr.Unknown)
+				 `(("Missing =, skipping" ,tokens))
+				 tokens)
+	      (Egg.Parser.Return (Egg.Expr.Unknown)
+				 '()
+				 (cdr tokens))))))
+
+  (define (parseRhs tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let* ([ret (Egg.Parser.parseExpr1 tokens)]
+	       [rhs (Egg.Parser.Return.getResult ret)]
+	       [tokens (Egg.Parser.Return.getTokens ret)])
+	  (if (not rhs)
+	      (Egg.Parser.Return.addError `("Could not parse rhs") ret)
+	      ret))))
+
+  (define (parseIn tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let ([t (car tokens)])
+	  (if (not (Egg.Token.In? t))
+	      (Egg.Parser.Return (Egg.Expr.Unknown)
+				 `(("Missing in, skipping" ,tokens))
+				 tokens)
+	      (Egg.Parser.Return (Egg.Expr.Unknown)
+				 '()
+				 (cdr tokens))))))
+
+  (define (parseBody tokens)
+    (if (null? tokens)
+	(Egg.Parser.Return.returnUnexpectedEOF tokens)
+	(let* ([ret (Egg.Parser.parseExpr1 tokens)]
+	       [body (Egg.Parser.Return.getResult ret)]
+	       [tokens (Egg.Parser.Return.getTokens ret)])
+	  (if (not body)
+	      (Egg.Parser.Return.addError `("Could not parse body") ret)
+	      ret))))
+
+  (let* ([ret (parseLet tokens)]
+	 [res (Egg.Parser.Return.getResult ret)]
+	 [errors '()]
+	 [tokens (Egg.Parser.Return.getTokens ret)])
+    (if (not res)
+	(Egg.Parser.Return.addError `("Missing let") ret)
+	(let* ([ret (parseLhs tokens)]
+	       [lhs (Egg.Parser.Return.getResult ret)]
+	       [errors (append (Egg.Parser.Return.getErrors ret) errors)]
+	       [tokens (Egg.Parser.Return.getTokens ret)])
+	  (if (not lhs)
+	      ret
+	      (let* ([ret (parseEqual tokens)]
+		     [res (Egg.Parser.Return.getResult ret)]
+		     [errors (append (Egg.Parser.Return.getErrors ret) errors)]
+		     [tokens (Egg.Parser.Return.getTokens ret)])
+		(if (not res)
+		    (Egg.Parser.Return.addError `("Missing =") ret)
+		    (let* ([ret (parseRhs tokens)]
+			   [rhs (Egg.Parser.Return.getResult ret)]
+			   [errors (append (Egg.Parser.Return.getErrors ret) errors)]
+			   [tokens (Egg.Parser.Return.getTokens ret)])
+		      (if (not rhs)
+			  ret
+			  (let* ([ret (parseIn tokens)]
+				 [res (Egg.Parser.Return.getResult ret)]
+				 [errors (append (Egg.Parser.Return.getErrors ret) errors)]
+				 [tokens (Egg.Parser.Return.getTokens ret)])
+			    (if (not res)
+				(Egg.Parser.Return.addError `("Missing in") ret)
+				(let* ([ret (parseBody tokens)]
+				       [body (Egg.Parser.Return.getResult ret)]
+				       [errors (append (Egg.Parser.Return.getErrors ret) errors)]
+				       [tokens (Egg.Parser.Return.getTokens ret)])
+				  (if (not body)
+				      ret
+				      (Egg.Parser.Return (Egg.Expr.Let lhs rhs body)
+							 errors
+							 tokens))))))))))))))
+			  
 (define (Egg.Parser.parseExpr2 tokens)
   (let ([parseBinop1 (Egg.Parser.parseBinop1 tokens)])
     (cond
@@ -276,6 +385,7 @@
 	    (let* ([tokens (cdr tokens)]
 		   [parseExpr (Egg.Parser.parseExpr1 tokens)]
 		   [expr (Egg.Parser.Return.getResult parseExpr)]
+		   [errors (Egg.Parser.Return.getErrors parseExpr)]
 		   [tokens (Egg.Parser.Return.getTokens parseExpr)])
 	      (if (null? tokens)
 		  (Egg.Parser.Return.returnUnexpectedEOF tokens) ;; Missing )
@@ -284,4 +394,4 @@
 		    (if (not (Egg.Token.RP? rp))
 			(Egg.Parser.Return.returnUnexpectedToken (Egg.Token.RP)
 								 tokens) ;; Missing ) (or maybe unit expr)
-			(Egg.Parser.Return expr tokens)))))))))
+			(Egg.Parser.Return expr errors tokens)))))))))

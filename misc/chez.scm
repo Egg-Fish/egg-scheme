@@ -11,5 +11,5 @@
       '(rnrs mutable-pairs) 
       '(rnrs mutable-strings) 
       '(rnrs r5rs)
-      '(only (chezscheme) import library load sort))
+      '(only (chezscheme) import library load sort trace untrace))
     #t))
