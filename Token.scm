@@ -1,6 +1,9 @@
 (define (Egg.Token? v)
   (or (Egg.Token.Let? v)
       (Egg.Token.In? v)
+      (Egg.Token.If? v)
+      (Egg.Token.Then? v)
+      (Egg.Token.Else? v)
       (Egg.Token.Equal? v)
       (Egg.Token.Plus? v)
       (Egg.Token.Star? v)
@@ -27,6 +30,30 @@
   (and (Egg.Object? v)
        (equal? (Egg.Object.getTag v)
 	       'Egg.Token.In)))
+
+
+(define (Egg.Token.If)
+  (Egg.Object 'Egg.Token.If))
+(define (Egg.Token.If? v)
+  (and (Egg.Object? v)
+       (equal? (Egg.Object.getTag v)
+	       'Egg.Token.If)))
+
+
+(define (Egg.Token.Then)
+  (Egg.Object 'Egg.Token.Then))
+(define (Egg.Token.Then? v)
+  (and (Egg.Object? v)
+       (equal? (Egg.Object.getTag v)
+	       'Egg.Token.Then)))
+
+
+(define (Egg.Token.Else)
+  (Egg.Object 'Egg.Token.Else))
+(define (Egg.Token.Else? v)
+  (and (Egg.Object? v)
+       (equal? (Egg.Object.getTag v)
+	       'Egg.Token.Else)))
 
 
 (define (Egg.Token.Equal)

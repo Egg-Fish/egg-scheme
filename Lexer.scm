@@ -109,6 +109,12 @@
 				(Egg.Lexer.Return (Egg.Token.Let) p)]
 			       [(string=? str "in")
 				(Egg.Lexer.Return (Egg.Token.In) p)]
+			       [(string=? str "if")
+				(Egg.Lexer.Return (Egg.Token.If) p)]
+			       [(string=? str "then")
+				(Egg.Lexer.Return (Egg.Token.Then) p)]
+			       [(string=? str "else")
+				(Egg.Lexer.Return (Egg.Token.Else) p)]
 			       [else
 				(Egg.Lexer.Return (Egg.Token.Id str) p)])))])
 	  (if (>= p (string-length string))
